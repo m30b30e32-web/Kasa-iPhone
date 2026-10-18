@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Калькулятор грязной суммы</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1b2430;
+  --ink-soft: #5b6676;
+  --paper: #eef1f5;
+  --surface: #ffffff;
+  --line: #d9dee6;
+  --accent: #0e7c7b;
+  --accent-ink: #ffffff;
+  --discount: #9a3f72;
+  --salary: #a8650f;
+  --ok: #1d7a46;
+  --warn: #b3261e;
+  --font: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e8ecf2; --ink-soft: #9aa5b5; --paper: #12171e; --surface: #1b222c; --line: #2b3441;
+    --accent: #3cb8b6; --accent-ink: #0c1214; --discount: #d884b6; --salary: #e0a24e; --ok: #5cc98a; --warn: #ff8a80;
+  }
+}
+:root[data-theme="dark"] {
+  --ink: #e8ecf2; --ink-soft: #9aa5b5; --paper: #12171e; --surface: #1b222c; --line: #2b3441;
+  --accent: #3cb8b6; --accent-ink: #0c1214; --discount: #d884b6; --salary: #e0a24e; --ok: #5cc98a; --warn: #ff8a80;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--font); font-size: 16px; line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.lang { display: flex; gap: 4px; flex-shrink: 0; margin-top: 10px; }
+.lang button { font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.wrap { max-width: 1020px; margin: 0 auto; padding: 20px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px)); }
+h1 { font-size: 26px; font-weight: 800; margin: 8px 0 4px; letter-spacing: -0.01em; }
+.sub { color: var(--ink-soft); margin: 0 0 20px; max-width: 60ch; }
+.grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
+.grid > .panel:first-child { container: kasaInputs / inline-size; }
+.panel h2 { font-size: 15px; font-weight: 600; margin: 0 0 14px; color: var(--ink-soft); }
+label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+label small { font-weight: 400; color: var(--ink-soft); }
+input[type=text], input[type=number] {
+  width: 100%; font: inherit; font-size: 18px; font-weight: 600; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+}
+input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.row2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: end; }
+/* Split currency and exchange values only when the INPUT panel itself is wide enough. */
+@container kasaInputs (min-width: 720px) {
+  .row2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button {
+  font: inherit; font-weight: 600; font-size: 15px; cursor: pointer;
+  padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--paper); color: var(--ink); min-width: 48px;
+}
+.seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* Independent basis selector: stays readable on narrow phones. */
+.calc-basis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.calc-basis button { min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: center; line-height: 1.3; }
+.chain { display: flex; flex-direction: column; }
+.step { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 14px; border-radius: 10px; background: var(--paper); min-width: 0; max-width: 100%; }
+.step .name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.step .hint { display: block; font-weight: 400; font-size: 13px; color: var(--ink-soft); }
+.step .val { font-size: clamp(20px, 2.8vw, 26px); font-weight: 800; white-space: nowrap; flex-shrink: 0; }
+.step.big { background: var(--ink); color: var(--paper); }
+.step.big .hint { color: inherit; opacity: .75; }
+.step.big .val { font-size: clamp(22px, 3.5vw, 30px); }
+.cut { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 14px 6px 28px; font-size: 15px; border-left: 3px solid var(--line); margin-left: 14px; min-width: 0; }
+.cut.d { border-color: var(--discount); } .cut.d .amt { color: var(--discount); }
+.cut.s { border-color: var(--salary); } .cut.s .amt { color: var(--salary); }
+.cut.x { border-color: var(--ink-soft); } .cut.x .amt { color: var(--ink-soft); }
+.cut .amt { font-weight: 800; flex-shrink: 0; }
+#out { min-width: 0; max-width: 100%; }
+.status { margin-top: 12px; font-size: 14px; padding: 10px 12px; border-radius: 10px; background: var(--paper); }
+.status.ok { color: var(--ok); } .status.warn { color: var(--warn); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: right; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 600; color: var(--ink-soft); }
+tr.pick td { font-weight: 800; color: var(--accent); }
+tr.bad td { color: var(--ink-soft); opacity: .7; }
+.tablewrap { overflow-x: auto; }
+details { margin-top: 14px; }
+summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.expl ol { margin: 10px 0 0; padding-left: 20px; }
+.expl li { margin-bottom: 8px; }
+.empty { color: var(--ink-soft); padding: 30px 6px; text-align: center; }
+.foot { margin-top: 16px; color: var(--ink-soft); font-size: 13px; }
+input[type=date] { width: 100%; font: inherit; font-size: 18px; font-weight: 600; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+select { font: inherit; font-size: 18px; font-weight: 600; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 6px; }
+.inp2.two { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 10px; align-items: end; } .inp2.two > div { min-width: 0; }
+.curres { display: flex; align-items: center; width: 100%; min-height: 50px; padding: 10px 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; font-size: clamp(18px, 2vw, 18px); font-weight: 600; color: var(--accent); white-space: normal; overflow-wrap: anywhere; }
+.inp2 { display: flex; gap: 6px; } .inp2 input { min-width: 0; flex: 1; }
+/* Keep the whole amount visible on narrow phones instead of clipping it. */
+@media (max-width: 430px) {
+  .curres { font-size: 18px; }
+}
+.saverow { display: flex; gap: 10px; align-items: flex-end; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.saverow > div { flex: 1; min-width: 150px; } .saverow label { margin-top: 0; }
+button.primary { font: inherit; font-weight: 800; font-size: 16px; cursor: pointer; padding: 11px 16px; border-radius: 10px; border: 0; background: var(--accent); color: var(--accent-ink); }
+button.ghost { font: inherit; font-weight: 600; font-size: 15px; cursor: pointer; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+#clr.confirm-clear { color: #b3261e; }
+.savemsg, .jmsg { min-height: 20px; margin-top: 8px; font-size: 14px; color: var(--ok); }
+.jr { margin-top: 16px; }
+.jhead { display: flex; justify-content: space-between; align-items: baseline; }
+.jhead span { color: var(--ink-soft); font-size: 14px; }
+.jbtns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+/* Journal: consistent columns; horizontal scrolling on narrow phones. */
+.jr .tablewrap { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.jr .tablewrap table { min-width: 760px; table-layout: fixed; }
+.jr .tablewrap th, .jr .tablewrap td { text-align: center; vertical-align: middle; padding: 9px 8px; overflow-wrap: anywhere; }
+.jr .tablewrap th:first-child, .jr .tablewrap td:first-child { text-align: center; white-space: nowrap; }
+.jr .tablewrap th:nth-child(1) { width: 102px; }
+.jr .tablewrap th:nth-child(2) { width: 90px; }
+.jr .tablewrap th:nth-child(3) { width: 180px; }
+.jr .tablewrap th:nth-child(4) { width: 95px; }
+.jr .tablewrap th:nth-child(5) { width: 105px; }
+.jr .tablewrap th:nth-child(6) { width: 110px; }
+.jr .tablewrap th:nth-child(7) { width: 42px; }
+.jr .tablewrap th:nth-child(3), .jr .tablewrap td:nth-child(3) { text-align: center; }
+.jr .tablewrap thead th { white-space: nowrap; }
+td button.x { font: inherit; font-size: 18px; line-height: 1; cursor: pointer; border: 0; background: transparent; color: var(--warn); padding: 2px 8px; }
+.dateWrap { position: relative; display: flex; gap: 6px; }
+.dateWrap #dateText { flex: 1; min-width: 0; }
+.dateBtn { font-size: 20px; line-height: 1; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); cursor: pointer; }
+.dateWrap #date { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+.pch { font-size: 15px; font-weight: 800; margin: 14px 0 4px; }
+:root { --flash: rgba(14, 124, 123, .2); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --flash: rgba(60, 184, 182, .3); } }
+:root[data-theme="dark"] { --flash: rgba(60, 184, 182, .3); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes flash { from { background-color: var(--flash); } to { background-color: transparent; } }
+.chain.enter > * { animation: rise .35s ease both; animation-delay: calc(var(--i, 0) * 55ms); }
+.jr tbody tr.flash { animation: flash 1.4s ease-out; }
+@media (prefers-reduced-motion: reduce) { .chain.enter > *, .jr tbody tr.flash { animation: none; } }
+/* --- Адаптив: узкие экраны --- */
+.rg { display: none; }
+@media (max-width: 520px) {
+  details .tablewrap th:nth-child(3), details .tablewrap td:nth-child(3) { display: none; }
+  .rg { display: block; font-size: 12px; font-weight: 400; color: var(--ink-soft); }
+  details .tablewrap td, details .tablewrap th { padding: 7px 4px; }
+}
+@media (max-width: 360px) {
+  h1 { font-size: 22px; }
+  .top { gap: 8px; }
+  .lang { margin-top: 8px; }
+  .lang button { padding: 5px 8px; }
+  details .tablewrap table { font-size: 12px; }
+  details .tablewrap td, details .tablewrap th { padding: 7px 3px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1 data-i18n="title"></h1>
+    <div class="lang" id="lang" role="group" aria-label="Language">
+      <button type="button" data-l="ru" aria-pressed="true">RU</button>
+      <button type="button" data-l="uk" aria-pressed="false">UA</button>
+    </div>
+  </div>
+  <p class="sub" data-i18n="sub"></p>
+
+  <div class="grid">
+    <section class="panel" data-i18n-aria="panelIn">
+      <h2 data-i18n="panelIn"></h2>
+
+      <label for="cash"><span data-i18n="cashL"></span> <small data-i18n="cashS"></small></label>
+      <input id="cash" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
+
+      <div class="row2">
+        <div>
+          <label for="usd"><span data-i18n="usdL"></span> <small data-i18n="usdS"></small></label>
+          <div class="inp2"><input id="usd" type="text" inputmode="decimal" autocomplete="off" placeholder="0"><select id="sym" data-i18n-aria="symAria"><option value="$">$</option><option value="€">€</option></select></div>
+        </div>
+        <div class="inp2 two">
+          <div><label for="rate" data-i18n="rate"></label><input id="rate" type="text" inputmode="decimal" autocomplete="off" value="45"></div>
+          <div><label for="curres" data-i18n="sumL"></label><output id="curres" class="curres" for="usd rate">= 0</output></div>
+        </div>
+      </div>
+
+      <label for="exp"><span data-i18n="expL"></span> <small data-i18n="expS"></small></label>
+      <input id="exp" type="text" inputmode="text" autocomplete="off" placeholder="0">
+
+      <label data-i18n="discount"></label>
+      <div class="seg" id="disc" role="group" data-i18n-aria="discount">
+        <button type="button" data-v="auto" aria-pressed="true" data-i18n="auto"></button>
+        <button type="button" data-v="5" aria-pressed="false">5%</button>
+        <button type="button" data-v="6" aria-pressed="false">6%</button>
+        <button type="button" data-v="7" aria-pressed="false">7%</button>
+        <button type="button" data-v="8" aria-pressed="false">8%</button>
+        <button type="button" data-v="9" aria-pressed="false">9%</button>
+        <button type="button" data-v="10" aria-pressed="false">10%</button>
+      </div>
+
+      <label for="sal"><span data-i18n="salL"></span> <small data-i18n="salS"></small></label>
+      <input id="sal" type="text" inputmode="decimal" autocomplete="off" value="4,5">
+    </section>
+
+    <section class="panel" aria-live="polite" data-i18n-aria="result">
+      <h2 data-i18n="result"></h2>
+      <div id="out"></div>
+      <div class="saverow">
+        <div><label for="dateText" data-i18n="dateL"></label><div class="dateWrap"><input id="dateText" type="text" inputmode="numeric" autocomplete="off" maxlength="10"><button type="button" id="dateBtn" class="dateBtn" data-i18n-aria="dateBtnAria">📅</button><input id="date" type="date" tabindex="-1" aria-hidden="true"></div></div>
+        <button type="button" id="save" class="primary" data-i18n="save"></button>
+      </div>
+      <div class="savemsg" id="savemsg" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <section class="panel jr" aria-live="polite">
+    <div class="jhead"><h2 data-i18n="journal"></h2><span id="jcount"></span></div>
+    <div id="jbody"></div>
+    <div class="jbtns">
+      <button type="button" id="xl" class="primary" data-i18n="xl"></button>
+      <button type="button" id="cp" class="ghost" data-i18n="cp"></button>
+      <button type="button" id="clr" class="ghost" data-i18n="clr"></button>
+    </div>
+    <div class="jmsg" id="jmsg"></div>
+    <div class="foot" data-i18n="jNote"></div>
+  </section>
+
+  <p class="foot" data-i18n="foot"></p>
+</div>
+
+<script>
+/*XL-START*/
+var XL = (function () {
+  var crcTable = (function () { var t = [], c, n, k; for (n = 0; n < 256; n++) { c = n; for (k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+  function crc32(b) { var c = 0xFFFFFFFF; for (var i = 0; i < b.length; i++) c = crcTable[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function zip(files) {
+    var enc = new TextEncoder(), parts = [], central = [], offset = 0;
+    files.forEach(function (f) {
+      var nameB = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data), size = data.length;
+      var lh = new Uint8Array(30 + nameB.length), dv = new DataView(lh.buffer);
+      dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 0x0800, true); dv.setUint16(8, 0, true);
+      dv.setUint16(10, 0, true); dv.setUint16(12, 0x21, true);
+      dv.setUint32(14, crc, true); dv.setUint32(18, size, true); dv.setUint32(22, size, true);
+      dv.setUint16(26, nameB.length, true); dv.setUint16(28, 0, true); lh.set(nameB, 30);
+      parts.push(lh, data);
+      var ch = new Uint8Array(46 + nameB.length), cv = new DataView(ch.buffer);
+      cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true); cv.setUint16(8, 0x0800, true); cv.setUint16(10, 0, true);
+      cv.setUint16(12, 0, true); cv.setUint16(14, 0x21, true); cv.setUint32(16, crc, true); cv.setUint32(20, size, true); cv.setUint32(24, size, true);
+      cv.setUint16(28, nameB.length, true); cv.setUint32(42, offset, true);
+      ch.set(nameB, 46); central.push(ch);
+      offset += lh.length + size;
+    });
+    var cdSize = 0; central.forEach(function (c) { cdSize += c.length; });
+    var end = new Uint8Array(22), ev = new DataView(end.buffer);
+    ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, files.length, true); ev.setUint16(10, files.length, true);
+    ev.setUint32(12, cdSize, true); ev.setUint32(16, offset, true);
+    return new Blob(parts.concat(central, [end]), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  function esc(x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function serial(iso) { var p = iso.split('-'); return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000) + 25569; }
+  function cStr(r, text, st) { return '<c r="' + r + '" s="' + st + '" t="inlineStr"><is><t xml:space="preserve">' + esc(text) + '</t></is></c>'; }
+  function cNum(r, n, st) { return '<c r="' + r + '" s="' + st + '"><v>' + n + '</v></c>'; }
+  function cEmpty(r, st) { return '<c r="' + r + '" s="' + st + '"/>'; }
+  var NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  var HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+
+  function build(entries) {
+    var heads = ['Дата', 'Каса', 'Сума $ €', 'Витрати', 'Знижка', 'Загалом'];
+    var cols = 'ABCDEF', rows = '';
+    rows += '<row r="1" ht="22" customHeight="1">' + heads.map(function (h, i) { return cStr(cols[i] + '1', h, 1); }).join('') + '</row>';
+    var sumB = 0, sumE = 0, sumF = 0;
+    entries.forEach(function (e, k) {
+      var r = k + 2;
+      rows += '<row r="' + r + '">' +
+        cNum('A' + r, serial(e.date), 2) +
+        cNum('B' + r, e.cash, 3) +
+        (e.cur ? cStr('C' + r, e.cur, 4) : cEmpty('C' + r, 4)) +
+        (e.expNum !== null && e.expNum !== undefined ? cNum('D' + r, e.expNum, 3) : (e.exp ? cStr('D' + r, e.exp, 4) : cEmpty('D' + r, 4))) +
+        cNum('E' + r, e.E, 3) +
+        cNum('F' + r, e.F, 3) + '</row>';
+      sumB += e.cash; sumE += e.E; sumF += e.F;
+    });
+    var n = entries.length, tr = n + 2, last = n + 1;
+    function fcell(col, v) { return '<c r="' + col + tr + '" s="6"><f>SUM(' + col + '2:' + col + last + ')</f><v>' + v + '</v></c>'; }
+    if (n > 0) {
+      rows += '<row r="' + tr + '">' + cStr('A' + tr, 'Всього', 5) + fcell('B', sumB) + cEmpty('C' + tr, 5) + cEmpty('D' + tr, 5) + fcell('E', sumE) + fcell('F', sumF) + '</row>';
+    }
+    var sheet = HEAD + '<worksheet xmlns="' + NS + '"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>' +
+      '<cols><col min="1" max="1" width="13" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="22" customWidth="1"/><col min="4" max="4" width="24" customWidth="1"/><col min="5" max="6" width="12" customWidth="1"/></cols>' +
+      '<sheetData>' + rows + '</sheetData></worksheet>';
+    var bd = '<border><left style="thin"><color rgb="FFA6A6A6"/></left><right style="thin"><color rgb="FFA6A6A6"/></right><top style="thin"><color rgb="FFA6A6A6"/></top><bottom style="thin"><color rgb="FFA6A6A6"/></bottom><diagonal/></border>';
+    function xf(num, font, fill, border) {
+      return '<xf numFmtId="' + num + '" fontId="' + font + '" fillId="' + fill + '" borderId="' + border + '" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+    }
+    var styles = HEAD + '<styleSheet xmlns="' + NS + '">' +
+      '<numFmts count="1"><numFmt numFmtId="164" formatCode="dd.mm.yyyy"/></numFmts>' +
+      '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+      '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6E0B4"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+      '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' + bd + '</borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+      xf(0, 1, 2, 1) + xf(164, 0, 0, 1) + xf(3, 0, 0, 1) + xf(0, 0, 0, 1) + xf(0, 1, 0, 1) + xf(3, 1, 0, 1) +
+      '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+    var R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    return zip([
+      { name: '[Content_Types].xml', text: HEAD + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+      { name: '_rels/.rels', text: HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="' + R + '/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+      { name: 'xl/workbook.xml', text: HEAD + '<workbook xmlns="' + NS + '" xmlns:r="' + R + '"><sheets><sheet name="Каса" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+      { name: 'xl/_rels/workbook.xml.rels', text: HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="' + R + '/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="' + R + '/styles" Target="styles.xml"/></Relationships>' },
+      { name: 'xl/styles.xml', text: styles },
+      { name: 'xl/worksheets/sheet1.xml', text: sheet }
+    ]);
+  }
+  return { build: build };
+})();
+/*XL-END*/
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  var T = {
+    ru: {
+      title: 'Калькулятор грязной суммы',
+      sub: 'Скидка и зарплата рассчитываются от полной грязной суммы (100%). Расходы — в гривнах.',
+      panelIn: 'Что сдали', result: 'Результат',
+      cashL: 'Касса, грн',
+      usdL: 'Валюта', usdS: '($ или €)', rate: 'Курс',
+      expL: 'Расходы, грн', expS: 'комиссия банка, налог, военный сбор, прро и др.',
+      basisGrossShort: 'от 100%', salGrossHint: 'от грязной суммы, 100%', invalidBasis: 'Сумма скидки и зарплаты должна быть меньше 100%.',
+      discount: 'Скидка', auto: 'Авто', salL: 'Зарплата, %', salS: 'от грязной суммы, 100%',
+      foot: 'Суммы округляются до гривны, как в таблице кассы. Разница в 1 грн при проверке — это округление.',
+      empty: 'Введите сумму кассы — расчёт появится здесь.',
+      salRange: 'Зарплата должна быть от 0 до 100%.',
+      noteMulti: 'Подходят несколько скидок ({list}). Выбрана большая — выберите ту, что реально дали.',
+      noteNone: 'Ни одна скидка не попала в свой диапазон. Выберите скидку вручную.',
+      noteOut: 'При скидке {t}% грязная {g} не попадает в её диапазон ({r}).',
+      upTo: 'до 60 000', from: 'от 100 000',
+      gross: 'Грязная', grossH: 'сумма по прайсу, 100%',
+      cutD: 'скидка {t}%', hand: 'На руки', handH: 'клиент заплатил',
+      cutS: 'зарплата {s}%', left: 'Остаток', leftH: 'касса + валюта + расходы',
+      cutX: 'расходы (комиссия и др.)', paid: 'Сдали в кассу', cashOnly: 'наличные', cur: 'валюта',
+      chkOk: 'Проверка сходится:', round: 'округление', chkBad: 'Проверка не сходится на {d} грн.',
+      allV: 'Все варианты скидки', thD: 'Скидка', thG: 'Грязная', thR: 'Диапазон', thF: 'Подходит', yes: 'да', no: 'нет',
+      expl: 'Как получилось, по шагам',
+      s1: 'Складываем всё, что получили:', exps: 'расходы',
+      s2Gross: 'Определяем долю остатка.', s2bGross: '100% − {d}% (скидка) − {s}% (зарплата) = {r}%.',
+      s3Gross: 'Возвращаем полную сумму — делим.', s3bGross: 'Остаток — это {r}% от грязной:',
+      s4: 'Проверяем вперёд — умножаем.', s4d: 'Скидка:', s4s: 'Зарплата:', one: 'Одним действием:',
+      sumL: 'Сумма, грн',
+      dateL: 'Дата', datePh: 'дд.мм.гггг', dateBad: 'Введите дату в формате дд.мм.гггг.', dateBtnAria: 'Выбрать дату в календаре', save: 'Сохранить в журнал', saved: 'Сохранено в журнал.', noSave: 'Сначала введите сумму кассы.',
+      journal: 'Журнал', jEmpty: 'Журнал пуст. Посчитайте строку и нажмите «Сохранить в журнал».', jCount: 'Записей: {n}',
+      xl: 'Скачать Excel (.xlsx)', cp: 'Копировать для вставки в Excel', clr: 'Очистить журнал', clr2: 'Точно очистить?',
+      copied: 'Скопировано. Откройте Excel и вставьте (Ctrl+V).', copyFail: 'Не удалось скопировать.', xlDone: 'Файл готов: {f}',
+      delAria: 'Удалить запись', symAria: 'Валюта: $ или €', jNote: 'Журнал хранится на этом устройстве.',
+      jhD: 'Дата', jhK: 'Касса', jhC: 'Сумма $ / €', jhV: 'Расходы', jhZ: 'Скидка', jhG: 'Всего',
+      pctTitle: 'Детальный расчёт итогового процента по шагам', pcH1: 'Вариант 1. Подробно', pcH2: 'Вариант 2. Компактный (через коэффициенты)',
+      pc1a: 'Исходная сумма («грязная»): принимается за 100%.',
+      pc1b: 'Вычет скидки {d}%: 100% − {d}% = {a}% (остаток после применения скидки).',
+      pc2a: 'Откуда берётся {r}%:',
+      pg1c: 'Зарплата {s}% считается от всех 100% грязной суммы.',
+      pg1d: 'Остаток: 100% − {d}% − {s}% = {r}% от исходной суммы.',
+      pg2b: 'Шаг 1 (скидка {d}%): 100% − {d}% = {a}%.',
+      pg2c: 'Шаг 2 (зарплата {s}% от исходных 100%): {a}% − {s}% = {r}%.',
+      pg2d: 'Формула одним действием: 1 − {k1} − {k2} = {j}, то есть {r}%.',
+      loc: 'ru-RU'
+    },
+    uk: {
+      title: 'Калькулятор брудної суми',
+      sub: 'Знижка та зарплата розраховуються від повної брудної суми (100%). Витрати — у гривнях.',
+      panelIn: 'Що здали', result: 'Результат',
+      cashL: 'Каса, грн',
+      usdL: 'Валюта', usdS: '($ або €)', rate: 'Курс',
+      expL: 'Витрати, грн', expS: 'комісія банку, податок, військовий збір, прро та ін.',
+      basisGrossShort: 'від 100%', salGrossHint: 'від брудної суми, 100%', invalidBasis: 'Сума знижки та зарплати має бути меншою за 100%.',
+      discount: 'Знижка', auto: 'Авто', salL: 'Зарплата, %', salS: 'від брудної суми, 100%',
+      foot: 'Суми округлюються до гривні, як у таблиці каси. Різниця в 1 грн при перевірці — це округлення.',
+      empty: 'Введіть суму каси — розрахунок з’явиться тут.',
+      salRange: 'Зарплата має бути від 0 до 100%.',
+      noteMulti: 'Підходить кілька знижок ({list}). Обрано більшу — виберіть ту, що реально дали.',
+      noteNone: 'Жодна знижка не потрапила у свій діапазон. Виберіть знижку вручну.',
+      noteOut: 'При знижці {t}% брудна {g} не потрапляє в її діапазон ({r}).',
+      upTo: 'до 60 000', from: 'від 100 000',
+      gross: 'Брудна', grossH: 'сума за прайсом, 100%',
+      cutD: 'знижка {t}%', hand: 'На руки', handH: 'клієнт заплатив',
+      cutS: 'зарплата {s}%', left: 'Залишок', leftH: 'каса + валюта + витрати',
+      cutX: 'витрати (комісія та ін.)', paid: 'Здали в касу', cashOnly: 'готівка', cur: 'валюта',
+      chkOk: 'Перевірка сходиться:', round: 'округлення', chkBad: 'Перевірка не сходиться на {d} грн.',
+      allV: 'Усі варіанти знижки', thD: 'Знижка', thG: 'Брудна', thR: 'Діапазон', thF: 'Підходить', yes: 'так', no: 'ні',
+      expl: 'Як вийшло, по кроках',
+      s1: 'Додаємо все, що отримали:', exps: 'витрати',
+      s2Gross: 'Визначаємо частку залишку.', s2bGross: '100% − {d}% (знижка) − {s}% (зарплата) = {r}%.',
+      s3Gross: 'Повертаємо повну суму — ділимо.', s3bGross: 'Залишок — це {r}% від брудної:',
+      s4: 'Перевіряємо вперед — множимо.', s4d: 'Знижка:', s4s: 'Зарплата:', one: 'Однією дією:',
+      sumL: 'Сума, грн',
+      dateL: 'Дата', datePh: 'дд.мм.рррр', dateBad: 'Введіть дату у форматі дд.мм.рррр.', dateBtnAria: 'Вибрати дату в календарі', save: 'Зберегти в журнал', saved: 'Збережено в журнал.', noSave: 'Спочатку введіть суму каси.',
+      journal: 'Журнал', jEmpty: 'Журнал порожній. Порахуйте рядок і натисніть «Зберегти в журнал».', jCount: 'Записів: {n}',
+      xl: 'Завантажити Excel (.xlsx)', cp: 'Копіювати для вставки в Excel', clr: 'Очистити журнал', clr2: 'Точно очистити?',
+      copied: 'Скопійовано. Відкрийте Excel і вставте (Ctrl+V).', copyFail: 'Не вдалося скопіювати.', xlDone: 'Файл готовий: {f}',
+      delAria: 'Видалити запис', symAria: 'Валюта: $ або €', jNote: 'Журнал зберігається на цьому пристрої.',
+      jhD: 'Дата', jhK: 'Каса', jhC: 'Сума $ / €', jhV: 'Витрати', jhZ: 'Знижка', jhG: 'Загалом',
+      pctTitle: 'Детальний розрахунок підсумкового відсотка по кроках', pcH1: 'Варіант 1. Докладно', pcH2: 'Варіант 2. Компактний (через коефіцієнти)',
+      pc1a: 'Вихідна сума («брудна»): приймається за 100%.',
+      pc1b: 'Вирахування знижки {d}%: 100% − {d}% = {a}% (залишок після застосування знижки).',
+      pc2a: 'Звідки береться {r}%:',
+      pg1c: 'Зарплата {s}% рахується від усіх 100% брудної суми.',
+      pg1d: 'Залишок: 100% − {d}% − {s}% = {r}% від початкової суми.',
+      pg2b: 'Крок 1 (знижка {d}%): 100% − {d}% = {a}%.',
+      pg2c: 'Крок 2 (зарплата {s}% від початкових 100%): {a}% − {s}% = {r}%.',
+      pg2d: 'Формула однією дією: 1 − {k1} − {k2} = {j}, тобто {r}%.',
+      loc: 'uk-UA'
+    }
+  };
+
+  var lang = 'ru';
+  try {
+    var saved = localStorage.getItem('kasa_lang');
+    if (saved === 'ru' || saved === 'uk') lang = saved;
+    else if ((navigator.language || '').toLowerCase().indexOf('uk') === 0) lang = 'uk';
+  } catch (e) {}
+
+  function t(k, o) {
+    var str = T[lang][k];
+    if (o) for (var key in o) str = str.split('{' + key + '}').join(o[key]);
+    return str;
+  }
+  var fmt = function (n) { return Math.round(n).toLocaleString(T[lang].loc); };
+  var nf = function (x, dec) { return String(parseFloat(x.toFixed(dec))).replace('.', ','); };
+  var fmt2 = function (n) { return n.toLocaleString(T[lang].loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+
+  function sumText(x) {
+    var m = String(x || '').match(/-?\d+(?:\s\d{3})*(?:[.,]\d+)?/g);
+    if (!m) return 0;
+    return m.reduce(function (a, v) { return a + parseFloat(v.replace(/\s/g, '').replace(',', '.')); }, 0);
+  }
+  function num(x) { var v = parseFloat(String(x || '').replace(/\s/g, '').replace(',', '.')); return isNaN(v) ? 0 : v; }
+
+  // Диапазоны скидок по грязной: до 60 000 — 5%, далее каждые 10 000 +1%, от 100 000 — 10%
+  function inRange(tt, g) {
+    var lo = tt === 5 ? -Infinity : tt * 10000;
+    var hi = tt === 10 ? Infinity : (tt + 1) * 10000;
+    return g >= lo && g < hi;
+  }
+  function rangeText(tt) {
+    if (tt === 5) return t('upTo');
+    if (tt === 10) return t('from');
+    return tt * 10 + ' 000 – ' + ((tt + 1) * 10) + ' 000';
+  }
+
+  var mode = 'auto';
+  var current = null;
+  var prevVals = {}, chainShown = false;
+  var reduceMotion = function () { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); };
+
+  // Save the current unsaved calculation, date and selected options.
+  var draftFields = ['cash', 'usd', 'rate', 'exp', 'sal', 'date', 'sym'];
+  function saveDraft() {
+    try {
+      var draft = { mode: mode };
+      draftFields.forEach(function (id) { draft[id] = $(id).value; });
+      localStorage.setItem('kasa_draft_v1', JSON.stringify(draft));
+    } catch (e) {}
+  }
+  function restoreDraft() {
+    try {
+      var raw = localStorage.getItem('kasa_draft_v1');
+      if (!raw) return;
+      var draft = JSON.parse(raw);
+      draftFields.forEach(function (id) {
+        if (typeof draft[id] === 'string') $(id).value = draft[id];
+      });
+      if (['auto', '5', '6', '7', '8', '9', '10'].indexOf(draft.mode) !== -1) mode = draft.mode;
+      Array.prototype.forEach.call($('disc').children, function (b) {
+        b.setAttribute('aria-pressed', b.getAttribute('data-v') === mode ? 'true' : 'false');
+      });
+    } catch (e) {}
+  }
+
+  function applyStatic() {
+    document.documentElement.lang = lang === 'uk' ? 'uk' : 'ru';
+    document.title = t('title');
+    $('dateText').setAttribute('placeholder', t('datePh'));
+    
+    Array.prototype.forEach.call(document.querySelectorAll('[data-i18n]'), function (el) { el.textContent = t(el.getAttribute('data-i18n')); });
+    document.querySelector('[data-i18n=salS]').textContent = t('salGrossHint');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-i18n-aria]'), function (el) { el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria'))); });
+    Array.prototype.forEach.call($('lang').children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-l') === lang ? 'true' : 'false'); });
+  }
+
+  // Плавный счёт чисел до нового значения (~0,26 с)
+  function animateNumbers(root) {
+    var reduce = reduceMotion();
+    Array.prototype.forEach.call(root.querySelectorAll('[data-k]'), function (el) {
+      var k = el.getAttribute('data-k'), to = Number(el.getAttribute('data-v')), pre = el.getAttribute('data-pre') || '';
+      var from = prevVals[k];
+      prevVals[k] = to;
+      if (reduce || from === undefined || from === to) return;
+      var start = null, dur = 260;
+      el.textContent = pre + fmt(from);
+      function step(ts) {
+        if (!el.isConnected) return;
+        if (start === null) start = ts;
+        var p = Math.min(1, (ts - start) / dur), e = 1 - Math.pow(1 - p, 3);
+        var v = p < 1 ? from + (to - from) * e : to;
+        prevVals[k] = v;
+        el.textContent = pre + fmt(v);
+        if (p < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  function render() {
+    current = null;
+    $('savemsg').textContent = '';
+    var cash = sumText($('cash').value);
+    var usd = sumText($('usd').value);
+    var rate = num($('rate').value);
+    var exp = sumText($('exp').value);
+    var s = num($('sal').value) / 100;
+    var cur = usd * rate;
+    $('curres').textContent = '= ' + fmt(cur);
+    var paid = cash + cur;
+    var M = paid + exp;
+    var out = $('out');
+
+    if (M <= 0) { prevVals = {}; chainShown = false; out.innerHTML = '<div class="empty">' + t('empty') + '</div>'; return; }
+    if (s < 0 || s >= 1) { prevVals = {}; chainShown = false; out.innerHTML = '<div class="empty">' + t('salRange') + '</div>'; return; }
+
+    var tiers = [5, 6, 7, 8, 9, 10].map(function (tt) {
+      var j = 1 - tt / 100 - s;
+      var g = j > 0 ? M / j : NaN;
+      return { t: tt, g: g, ok: Number.isFinite(g) && inRange(tt, g) };
+    });
+
+    var pick, note = '';
+    if (mode === 'auto') {
+      var valid = tiers.filter(function (x) { return x.ok; });
+      if (valid.length) {
+        pick = valid[valid.length - 1];
+        if (valid.length > 1) note = t('noteMulti', { list: valid.map(function (v) { return v.t + '%'; }).join(', ') });
+      } else {
+        pick = tiers[0];
+        note = t('noteNone');
+      }
+    } else {
+      pick = tiers.filter(function (x) { return x.t === Number(mode); })[0];
+      if (!pick.ok) note = t('noteOut', { t: pick.t, g: fmt(pick.g), r: rangeText(pick.t) });
+    }
+
+    var d = pick.t / 100;
+    var J = 1 - d - s;
+    if (J <= 0) { prevVals = {}; chainShown = false; out.innerHTML = '<div class="empty">' + t('invalidBasis') + '</div>'; return; }
+    var F = Math.round(M / J);
+    var E = Math.round(F * d);
+    var hand = F - E;
+    var I = Math.round(F * s);
+    var left = hand - I;
+    var diff = Math.round((left - M) * 100) / 100;
+    var salTxt = String(num($('sal').value)).replace('.', ',');
+    current = {
+      cash: cash,
+      curText: usd > 0 ? $('sym').value + usd + ' (' + rate + ')=' + Math.round(cur) : '',
+      exp: $('exp').value.trim(),
+      d: pick.t, E: E, F: F
+    };
+
+    var h = '<div class="chain">';
+    h += '<div class="step big"><span class="name">' + t('gross') + '<span class="hint">' + t('grossH') + '</span></span><span class="val" data-k="F" data-v="' + F + '">' + fmt(F) + '</span></div>';
+    h += '<div class="cut d"><span>' + t('cutD', { t: pick.t }) + '</span><span class="amt" data-k="E" data-v="' + E + '" data-pre="− ">− ' + fmt(E) + '</span></div>';
+    h += '<div class="step"><span class="name">' + t('hand') + '<span class="hint">' + t('handH') + '</span></span><span class="val" data-k="H" data-v="' + hand + '">' + fmt(hand) + '</span></div>';
+    h += '<div class="cut s"><span>' + t('cutS', { s: salTxt }) + ' (' + t('basisGrossShort') + ')' + '</span><span class="amt" data-k="I" data-v="' + I + '" data-pre="− ">− ' + fmt(I) + '</span></div>';
+    h += '<div class="step"><span class="name">' + t('left') + '<span class="hint">' + t('leftH') + '</span></span><span class="val" data-k="L" data-v="' + left + '">' + fmt(left) + '</span></div>';
+    if (exp !== 0) h += '<div class="cut x"><span>' + t('cutX') + '</span><span class="amt" data-k="X" data-v="' + Math.abs(exp) + '" data-pre="' + (exp > 0 ? '− ' : '+ ') + '">' + (exp > 0 ? '− ' : '+ ') + fmt(Math.abs(exp)) + '</span></div>';
+    h += '<div class="step"><span class="name">' + t('paid') + '<span class="hint">' + (cur > 0 ? fmt(cash) + ' грн + ' + fmt(cur) + ' (' + t('cur') + ')' : t('cashOnly')) + '</span></span><span class="val" data-k="P" data-v="' + paid + '" >' + fmt(paid) + '</span></div>';
+    h += '</div>';
+
+    var okCheck = Math.abs(diff) <= 1;
+    h += '<div class="status ' + (okCheck && !note ? 'ok' : 'warn') + '">';
+    h += okCheck ? t('chkOk') + ' ' + fmt(F) + ' − ' + fmt(E) + ' − ' + fmt(I) + ' = ' + fmt(left) + (diff !== 0 ? ' (' + t('round') + ' ' + (diff > 0 ? '+' : '') + String(diff).replace('.', ',') + ')' : '') + '.' : t('chkBad', { d: String(diff).replace('.', ',') });
+    if (note) h += '<br>' + note;
+    h += '</div>';
+
+    h += '<details open><summary>' + t('allV') + '</summary><div class="tablewrap"><table><thead><tr><th>' + t('thD') + '</th><th>' + t('thG') + '</th><th>' + t('thR') + '</th><th>' + t('thF') + '</th></tr></thead><tbody>';
+    tiers.forEach(function (x) {
+      h += '<tr class="' + (x.t === pick.t ? 'pick' : (x.ok ? '' : 'bad')) + '"><td>' + x.t + '%<small class="rg">' + rangeText(x.t) + '</small></td><td>' + (Number.isFinite(x.g) ? fmt2(x.g) : '—') + '</td><td>' + rangeText(x.t) + '</td><td>' + (x.ok ? t('yes') : t('no')) + '</td></tr>';
+    });
+    h += '</tbody></table></div></details>';
+
+    h += '<details class="expl"><summary>' + t('expl') + '</summary><ol>';
+    h += '<li><b>' + t('s1') + '</b> ' + fmt(cash) + (cur > 0 ? ' + ' + fmt(cur) + ' (' + fmt(usd) + ' × ' + rate + ')' : '') + (exp !== 0 ? ' + (' + fmt(exp) + ') (' + t('exps') + ')' : '') + ' = <b>' + fmt(M) + '</b>.</li>';
+    h += '<li><b>' + t('s2Gross') + '</b> ' + t('s2bGross', { d: pick.t, s: salTxt, r: nf(J * 100, 4) }) + '</li>';
+    h += '<li><b>' + t('s3Gross') + '</b> ' + t('s3bGross', { r: nf(J * 100, 4) }) + ' ' + fmt(M) + ' / ' + nf(J, 5) + ' = <b>' + fmt2(M / J) + '</b>.</li>';
+    h += '<li><b>' + t('s4') + '</b> ' + t('s4d') + ' ' + fmt2(M / J) + ' × ' + pick.t + '% = ' + fmt2((M / J) * d) + '. ' + t('s4s') + ' ' + fmt2(M / J) + ' × ' + salTxt + '% = ' + fmt2((M / J) * s) + '.</li>';
+    h += '</ol><p>' + t('one') + ' ' + fmt(M) + ' / ' + J.toFixed(5) + ' = ' + fmt2(M / J) + '.</p></details>';
+
+    var pd = pick.t, pa = 100 - pd, ps = num($('sal').value), pb = 100 - ps, pr = J * 100;
+    var pv = { d: nf(pd, 4), a: nf(pa, 4), s: nf(ps, 4), b: nf(pb, 4), r: nf(pr, 4),
+      k1: nf(d, 5), k2: nf(s, 5), j: nf(J, 5) };
+    h += '<details class="expl"><summary>' + t('pctTitle') + '</summary>' +
+      '<h3 class="pch">' + t('pcH1') + '</h3><ol><li>' + t('pc1a') + '</li><li>' + t('pc1b', pv) + '</li><li>' + t('pg1c', pv) + '</li><li>' + t('pg1d', pv) + '</li></ol>' +
+      '<h3 class="pch">' + t('pcH2') + '</h3><p>' + t('pc2a', pv) + '</p><ol><li>' + t('pg2b', pv) + '</li><li>' + t('pg2c', pv) + '</li></ol><p>' + t('pg2d', pv) + '</p></details>';
+
+    var wasOpen = Array.prototype.map.call(out.querySelectorAll('details'), function (x) { return x.open; });
+    out.innerHTML = h;
+    var nd = out.querySelectorAll('details');
+    if (wasOpen.length === nd.length) Array.prototype.forEach.call(nd, function (x, i) { x.open = wasOpen[i]; });
+    // Цепочка плавно проявляется только при первом расчёте
+    var chEl = out.querySelector('.chain');
+    if (chEl && !chainShown) {
+      chEl.classList.add('enter');
+      Array.prototype.forEach.call(chEl.children, function (c, i) { c.style.setProperty('--i', i); });
+    }
+    chainShown = true;
+    animateNumbers(out);
+  }
+
+  ['cash', 'usd', 'rate', 'exp', 'sal'].forEach(function (id) { $(id).addEventListener('input', function () { saveDraft(); render(); }); });
+  ['sym', 'date'].forEach(function (id) { $(id).addEventListener('change', function () { saveDraft(); render(); }); });
+  window.addEventListener('pagehide', saveDraft);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) saveDraft(); });
+
+  $('disc').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    mode = b.getAttribute('data-v');
+    saveDraft();
+    Array.prototype.forEach.call($('disc').children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+    render();
+  });
+
+  $('out').addEventListener('click', function (e) {
+    var sum = e.target.closest ? e.target.closest('summary') : null;
+    if (!sum || reduceMotion()) return;
+    var d = sum.parentNode;
+    if (!d || d.tagName !== 'DETAILS' || !d.animate) return;
+    e.preventDefault();
+    if (d._anim) { d._anim.cancel(); d._anim = null; }
+    var from = d.offsetHeight, opening = !d.open, to;
+    d.style.overflow = 'hidden';
+    if (opening) { d.open = true; to = d.offsetHeight; } else { to = sum.offsetHeight; }
+    var a = d.animate({ height: [from + 'px', to + 'px'] }, { duration: 220, easing: 'ease-out' });
+    d._anim = a;
+    a.onfinish = function () { if (!opening) d.open = false; d.style.overflow = ''; d._anim = null; };
+    a.oncancel = function () { d.style.overflow = ''; };
+  });
+
+  $('lang').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    lang = b.getAttribute('data-l');
+    try { localStorage.setItem('kasa_lang', lang); } catch (err) {}
+    applyStatic();
+    render();
+    renderJournal();
+  });
+
+  // ---------- Журнал ----------
+  var journal = [];
+  try { journal = JSON.parse(localStorage.getItem('kasa_journal') || '[]'); if (!Array.isArray(journal)) journal = []; } catch (e) { journal = []; }
+  function saveJournal() { try { localStorage.setItem('kasa_journal', JSON.stringify(journal)); } catch (e) {} }
+  function escH(x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function todayISO() { var d = new Date(), m = d.getMonth() + 1, dd = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (dd < 10 ? '0' : '') + dd; }
+  function dmy(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : iso; }
+
+  function renderJournal() {
+    $('jcount').textContent = journal.length ? t('jCount', { n: journal.length }) : '';
+    if (!journal.length) { $('jbody').innerHTML = '<div class="empty">' + t('jEmpty') + '</div>'; return; }
+    var h = '<div class="tablewrap"><table><thead><tr><th>' + t('jhD') + '</th><th>' + t('jhK') + '</th><th>' + t('jhC') + '</th><th>' + t('jhV') + '</th><th>' + t('jhZ') + '</th><th>' + t('jhG') + '</th><th></th></tr></thead><tbody>';
+    journal.forEach(function (e, i) {
+      h += '<tr><td>' + dmy(e.date) + '</td><td>' + fmt(e.cash) + '</td><td>' + escH(e.cur) + '</td><td>' + escH(e.exp) + '</td><td>' + fmt(e.E) + ' (' + e.d + '%)</td><td><b>' + fmt(e.F) + '</b></td><td><button type="button" class="x" data-i="' + i + '" aria-label="' + t('delAria') + '">×</button></td></tr>';
+    });
+    $('jbody').innerHTML = h + '</tbody></table></div>';
+  }
+
+  function downloadBlob(blob, name) {
+    var a = document.createElement('a'), u = URL.createObjectURL(blob);
+    a.href = u; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(u); }, 1000);
+  }
+  function deliver(blob, name) {
+    if (window.KasaAndroid && typeof window.KasaAndroid.saveExcel === 'function') {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var base64 = String(reader.result).split(',')[1];
+            if (window.KasaAndroid.saveExcel(name, base64)) resolve();
+            else reject(new Error('Android save failed'));
+          } catch (e) { reject(e); }
+        };
+        reader.onerror = function () { reject(new Error('File reading failed')); };
+        reader.readAsDataURL(blob);
+      });
+    }
+    // In the Android app, a browser-style blob download cannot confirm a saved file.
+    if (/Android/i.test(navigator.userAgent)) {
+      return Promise.reject(new Error('Android bridge unavailable: install updated APK with MainActivity.java'));
+    }
+    var mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent), file = null;
+    try { file = new File([blob], name, { type: blob.type }); } catch (e) {}
+    if (mobile && file && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+      return navigator.share({ files: [file], title: name }).catch(function (err) { if (!(err && err.name === 'AbortError')) downloadBlob(blob, name); });
+    }
+    downloadBlob(blob, name);
+    return Promise.resolve();
+  }
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    return new Promise(function (res, rej) {
+      var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta); ok ? res() : rej();
+    });
+  }
+
+  $('save').addEventListener('click', function () {
+    if (!current) { $('savemsg').textContent = t('noSave'); return; }
+    var isoD = parseDMY($('dateText').value);
+    if (!isoD) { $('savemsg').textContent = t('dateBad'); return; }
+    var raw = current.exp;
+    journal.push({
+      date: isoD,
+      cash: current.cash, cur: current.curText, exp: raw,
+      expNum: /^\d+(?:[.,]\d+)?$/.test(raw) ? parseFloat(raw.replace(',', '.')) : null,
+      d: current.d, E: current.E, F: current.F
+    });
+    saveJournal(); renderJournal();
+    var jrows = $('jbody').querySelectorAll('tbody tr');
+    if (jrows.length) jrows[jrows.length - 1].classList.add('flash');
+    $('savemsg').textContent = t('saved');
+  });
+  $('jbody').addEventListener('click', function (e) {
+    var b = e.target.closest('button.x');
+    if (!b) return;
+    journal.splice(Number(b.getAttribute('data-i')), 1);
+    saveJournal(); renderJournal();
+  });
+  $('xl').addEventListener('click', function () {
+    if (!journal.length) { $('jmsg').textContent = t('jEmpty'); return; }
+    var name = 'kasa_' + todayISO() + '.xlsx';
+    deliver(XL.build(journal), name).then(function () { $('jmsg').textContent = t('xlDone', { f: name }); }, function () { $('jmsg').textContent = lang === 'uk' ? 'Не вдалося зберегти Excel у Завантаження. Перевірте, чи встановлено оновлений APK.' : 'Не удалось сохранить Excel в Загрузки. Проверьте, установлен ли обновлённый APK.'; });
+  });
+  $('cp').addEventListener('click', function () {
+    if (!journal.length) { $('jmsg').textContent = t('jEmpty'); return; }
+    var rows = journal.map(function (e) { return [dmy(e.date), e.cash, e.cur, e.exp, e.E, e.F].join('\t'); }).join('\n');
+    copyText(rows).then(function () { $('jmsg').textContent = t('copied'); }, function () { $('jmsg').textContent = t('copyFail'); });
+  });
+  var clrTimer = null;
+  $('clr').addEventListener('click', function () {
+    if (!journal.length) return;
+    if (clrTimer) {
+      clearTimeout(clrTimer);
+      clrTimer = null;
+      journal = [];
+      saveJournal();
+      renderJournal();
+      $('clr').textContent = t('clr');
+      $('clr').classList.remove('confirm-clear');
+      try {
+        if (window.KasaAndroid && typeof window.KasaAndroid.journalCleared === 'function') {
+          window.KasaAndroid.journalCleared();
+        }
+      } catch (e) {}
+      return;
+    }
+    $('clr').textContent = t('clr2');
+    $('clr').classList.add('confirm-clear');
+    clrTimer = setTimeout(function () { clrTimer = null; $('clr').textContent = t('clr'); $('clr').classList.remove('confirm-clear'); }, 4000);
+  });
+
+  function parseDMY(str) {
+    var m = String(str).trim().match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/);
+    if (!m) return null;
+    var d = +m[1], mo = +m[2], y = +m[3], dt = new Date(y, mo - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+    return y + '-' + (mo < 10 ? '0' : '') + mo + '-' + (d < 10 ? '0' : '') + d;
+  }
+  function setDate(iso) { $('date').value = iso; $('dateText').value = dmy(iso); }
+  var datePrev = '';
+  $('dateText').addEventListener('focus', function () { datePrev = this.value; });
+  $('dateText').addEventListener('blur', function () { var iso = parseDMY(this.value); if (iso) this.value = dmy(iso); });
+  $('dateText').addEventListener('input', function (ev) {
+    var el = this, v = el.value, pos = el.selectionStart;
+    var type = (ev && ev.inputType) || '';
+    var del = type.indexOf('delete') === 0;
+    var clean = v.replace(/[^\d.]/g, '');
+    if (clean !== v) { pos = v.slice(0, pos).replace(/[^\d.]/g, '').length; v = clean; }
+    if (del) {
+      // Удаление: ничего не пересобираем, чтобы цифры не «съезжали» из года.
+      // Если стёрли точку, стираем соседнюю цифру, а точку оставляем.
+      if (datePrev.length - v.length === 1 && datePrev.charAt(pos) === '.') {
+        if (type === 'deleteContentForward') v = datePrev.slice(0, pos + 1) + datePrev.slice(pos + 2);
+        else { v = datePrev.slice(0, pos - 1) + datePrev.slice(pos); pos = pos - 1; }
+      }
+      el.value = v; el.setSelectionRange(pos, pos);
+    } else {
+      // Ввод: расставляем точки и возвращаем курсор на то же место (по числу цифр слева)
+      var before = v.slice(0, pos).replace(/\D/g, '').length, atEnd = pos >= v.length;
+      var dg = v.replace(/\D/g, '').slice(0, 8), o = dg;
+      if (dg.length > 4) o = dg.slice(0, 2) + '.' + dg.slice(2, 4) + '.' + dg.slice(4);
+      else if (dg.length > 2) o = dg.slice(0, 2) + '.' + dg.slice(2);
+      var np = o.length;
+      if (!atEnd) {
+        np = 0;
+        for (var i = 0, c = 0; i < o.length && c < before; i++) { if (/\d/.test(o.charAt(i))) c++; np = i + 1; }
+      }
+      el.value = o; el.setSelectionRange(np, np);
+    }
+    datePrev = el.value;
+    var iso = parseDMY(el.value); if (iso) $('date').value = iso;
+    saveDraft();
+  });
+  $('dateBtn').addEventListener('click', function () {
+    var el = $('date'), iso = parseDMY($('dateText').value);
+    if (iso) el.value = iso;
+    try { if (el.showPicker) { el.showPicker(); return; } } catch (e) {}
+    el.focus(); el.click();
+  });
+  $('date').addEventListener('change', function () { if (this.value) { $('dateText').value = dmy(this.value); saveDraft(); } });
+  setDate(todayISO());
+  restoreDraft();
+  if ($('date').value) $('dateText').value = dmy($('date').value);
+  applyStatic();
+  render();
+  renderJournal();
+})();
+</script>
+</body>
+</html>
